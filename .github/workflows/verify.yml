@@ -1,0 +1,70 @@
+# Copy to .github/workflows/verify.yml in the Superset fork.
+#
+# The CI signal that gates Devin's PRs.
+#
+# This is deliberately NOT Superset's full CI. Installing Superset's dependency tree
+# takes longer than this whole project's build budget, and a slow signal cannot be fed
+# back into a live session while anyone is watching. What it does check:
+#   1. the changed Python files lint clean
+#   2. the PR does not introduce any advisory the base branch did not already have
+#
+# Note (2) is a REGRESSION gate, not an absolute one. An absolute "repo must be clean"
+# gate would fail every PR while any other advisory is still open in the backlog, which
+# would mark every remediation red regardless of merit.
+name: verify
+
+on:
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Collect changed files
+        run: |
+          git diff --name-only "origin/${{ github.base_ref }}"...HEAD > changed.txt
+          echo "--- changed files ---"; cat changed.txt
+          grep -E '\.py$' changed.txt > changed_py.txt || true
+
+      - name: Lint changed Python files
+        run: |
+          if [ ! -s changed_py.txt ]; then echo "no python changes"; exit 0; fi
+          pip install ruff
+          xargs -a changed_py.txt ruff check
+
+      - name: Materialise the base branch manifests
+        run: |
+          mkdir -p /tmp/base/requirements /tmp/base/superset-frontend
+          B="origin/${{ github.base_ref }}"
+          git show "$B:requirements/base.txt" > /tmp/base/requirements/base.txt
+          git show "$B:superset-frontend/package.json" \
+            > /tmp/base/superset-frontend/package.json
+          git show "$B:superset-frontend/package-lock.json" \
+            > /tmp/base/superset-frontend/package-lock.json
+
+      - name: Scan both revisions
+        run: |
+          pip install pip-audit
+          pip-audit -r requirements/base.txt --no-deps \
+            --format json --output head-pip.json || true
+          pip-audit -r /tmp/base/requirements/base.txt --no-deps \
+            --format json --output base-pip.json || true
+          (cd superset-frontend      && npm audit --json) > head-npm.json || true
+          (cd /tmp/base/superset-frontend && npm audit --json) > base-npm.json || true
+
+      - name: No new advisories
+        run: |
+          python .github/scripts/audit_diff.py \
+            base-pip.json head-pip.json base-npm.json head-npm.json
