@@ -94,7 +94,13 @@ def main():
     seen = existing_fingerprints()
     new = [f for f in findings if FINGERPRINT.format(f["fp"]) not in seen]
 
-    print(f"{len(findings)} findings, {len(new)} not yet tracked")
+    print(f"{len(findings)} findings, {len(new)} not yet tracked\n")
+    # Print every fingerprint. Makes the dedup behaviour auditable from the run log,
+    # and gives you the exact string to paste when backfilling a hand-written issue.
+    for f in findings:
+        state = "NEW    " if f in new else "tracked"
+        print(f"  {state}  {f['fp']}")
+    print()
 
     for f in new[:MAX_NEW]:
         body = f["body"] + "\n\n" + FINGERPRINT.format(f["fp"])
