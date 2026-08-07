@@ -14,9 +14,10 @@ Exits 1 if the PR introduces an advisory the base branch did not have.
 
 import json
 import sys
+from typing import Any
 
 
-def load(path):
+def load(path: str) -> dict[str, Any]:
     try:
         with open(path) as f:
             return json.load(f)
@@ -24,16 +25,18 @@ def load(path):
         return {}
 
 
-def pip_ids(path):
+def pip_ids(path: str) -> set[str]:
     data = load(path)
-    return {f"{d['name']}:{v['id']}"
-            for d in data.get("dependencies", [])
-            for v in d.get("vulns", [])}
+    return {
+        f"{d['name']}:{v['id']}"
+        for d in data.get("dependencies", [])
+        for v in d.get("vulns", [])
+    }
 
 
-def npm_ids(path):
+def npm_ids(path: str) -> set[str]:
     data = load(path)
-    out = set()
+    out: set[str] = set()
     for name, adv in (data.get("vulnerabilities") or {}).items():
         if adv.get("severity") not in ("critical", "high"):
             continue
@@ -43,7 +46,7 @@ def npm_ids(path):
     return out
 
 
-def main():
+def main() -> int:
     base_pip, head_pip, base_npm, head_npm = sys.argv[1:5]
     base = pip_ids(base_pip) | npm_ids(base_npm)
     head = pip_ids(head_pip) | npm_ids(head_npm)
@@ -59,15 +62,19 @@ def main():
         print("  (no change to the advisory set)")
 
     if introduced:
-        print(f"\nFAIL: this PR introduces {len(introduced)} advisory/advisories "
-              f"not present on the base branch.")
+        print(
+            f"\nFAIL: this PR introduces {len(introduced)} advisory/advisories "
+            f"not present on the base branch."
+        )
         return 1
     if fixed:
         print(f"\nPASS: {len(fixed)} advisory/advisories cleared, none introduced.")
     else:
-        print("\nPASS: no advisories introduced. "
-              "Note this PR did not clear one either -- if it was meant to, "
-              "check that the fix actually landed in the manifest.")
+        print(
+            "\nPASS: no advisories introduced. "
+            "Note this PR did not clear one either -- if it was meant to, "
+            "check that the fix actually landed in the manifest."
+        )
     return 0
 
 
