@@ -88,6 +88,11 @@ def existing_fingerprints():
 
 def main():
     findings = pip_findings() + npm_findings()
+    # The same advisory can surface more than once (a package constrained in two
+    # places resolves to two entries). Collapse by fingerprint first -- the `seen`
+    # check below is computed once per run, so in-run duplicates would otherwise
+    # each open their own issue.
+    findings = list({f["fp"]: f for f in findings}.values())
     findings.sort(key=lambda f: SEVERITY_ORDER.index(f["severity"])
                   if f["severity"] in SEVERITY_ORDER else 99)
 
