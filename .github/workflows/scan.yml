@@ -1,0 +1,48 @@
+# Copy to .github/workflows/scan.yml in the Superset fork.
+#
+# EVENT SOURCE #1: scheduled scan.
+# Runs the real scanners, and opens one issue per previously-unseen finding.
+# Idempotent: each issue body carries a fingerprint, and we skip fingerprints
+# that already have an issue.
+name: security-scan
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+    inputs:
+      max_new_issues:
+        description: "Cap on new issues opened by this run"
+        default: "5"
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run pip-audit
+        run: |
+          pip install pip-audit
+          # --no-deps because requirements/base.txt is already a pinned lock file.
+          pip-audit -r requirements/base.txt --no-deps --format json \
+            --output pip-audit.json || true
+
+      - name: Run npm audit
+        run: |
+          cd superset-frontend
+          npm audit --json > ../npm-audit.json || true
+
+      - name: Open issues for new findings
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MAX_NEW: ${{ inputs.max_new_issues || '5' }}
+        run: python .github/scripts/open_findings.py
