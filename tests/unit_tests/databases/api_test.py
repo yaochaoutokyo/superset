@@ -347,11 +347,11 @@ def test_database_connection(
     }
 
 
-@pytest.mark.skip(reason="Works locally but fails on CI")
 def test_update_with_password_mask(
     app: Any,
     session: Session,
     client: Any,
+    mocker: MockerFixture,
     full_api_access: None,
 ) -> None:
     """
@@ -361,6 +361,10 @@ def test_update_with_password_mask(
     from superset.models.core import Database
 
     DatabaseRestApi.datamodel._session = session
+
+    # permission syncing is out of scope for this assertion, and requires a
+    # resolvable user in the session
+    mocker.patch("superset.commands.database.update.SyncPermissionsCommand")
 
     # create table for databases
     Database.metadata.create_all(session.get_bind())  # pylint: disable=no-member
