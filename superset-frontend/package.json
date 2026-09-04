@@ -416,6 +416,9 @@
       "js-yaml": "^4.3.0"
     },
     "nwsapi": "^2.2.13",
+    "nx": {
+      "brace-expansion": "^5.0.9"
+    },
     "puppeteer": "^22.4.1",
     "tar": "^7.5.16",
     "typescript-json-schema": "^0.68.0",
